@@ -76,10 +76,8 @@ class OsuAPI:
                 return self.token
 
     async def _get(self, url, params=None):
-        print("ENTER _GET")
 
         token = await self.get_token()
-        print("TOKEN:", token is not None)
 
         if token is None:
             return None
@@ -88,24 +86,18 @@ class OsuAPI:
             "Authorization": f"Bearer {token}"
         }
 
-        print("BEFORE REQUEST")
-
         async with self.session.get(
             url,
             headers=headers,
             params=params
         ) as response:
 
-            print("STATUS:", response.status)
-
             if response.status != 200:
                 error = await response.text()
                 print(error)
                 return None
 
-            print("RETURN JSON")
             return await response.json()
-
 
     async def get_user(self, username):
 
@@ -228,4 +220,4 @@ class OsuAPI:
         return result.get("scores", [])
 
     async def calculate_score_performance(self, score):
-        return await calculate_score_performance(score)
+        return await calculate_score_performance(self.session, score)

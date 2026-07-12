@@ -14,7 +14,7 @@ BEATMAP_CACHE_DIR = os.path.join(
     "beatmaps"
 )
 
-async def get_beatmap_file(beatmap_id):
+async def get_beatmap_file(session, beatmap_id):
 
     os.makedirs(
         BEATMAP_CACHE_DIR,
@@ -44,20 +44,18 @@ async def get_beatmap_file(beatmap_id):
         f"{beatmap_id}"
     )
 
-    async with aiohttp.ClientSession() as session:
+    async with session.get(url) as response:
 
-        async with session.get(url) as response:
+        if response.status != 200:
 
-            if response.status != 200:
+            print(
+                f"Failed downloading beatmap "
+                f"{beatmap_id}"
+            )
 
-                print(
-                    f"Failed downloading beatmap "
-                    f"{beatmap_id}"
-                )
+            return None
 
-                return None
-
-            content = await response.read()
+        content = await response.read()
 
     with open(file_path, "wb") as file:
         file.write(content)
@@ -94,7 +92,7 @@ def extract_mods(score):
     return result
 
 
-async def calculate_score_performance(score):
+async def calculate_score_performance(session, score):
     beatmap_data = score.get("beatmap")
 
     if not beatmap_data:
@@ -103,6 +101,7 @@ async def calculate_score_performance(score):
     beatmap_id = beatmap_data["id"]
 
     file_path = await get_beatmap_file(
+        session,
         beatmap_id
     )
 

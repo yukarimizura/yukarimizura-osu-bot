@@ -1,9 +1,10 @@
 import os
 
-from config import MAX_BEATMAP_CACHE
+from config import MAX_BEATMAP_CACHE, MAX_DELETE_BATCH
 
 
 MAX_CACHE_FILES = MAX_BEATMAP_CACHE
+CACHE_DELETE_BATCH = MAX_DELETE_BATCH
 
 
 def cleanup_cache(
@@ -55,10 +56,9 @@ def cleanup_cache(
 
     # Number of files that must be removed
     # to leave one free slot.
-    files_to_delete = (
+    files_to_delete = min(
+        CACHE_DELETE_BATCH,
         len(files)
-        - MAX_CACHE_FILES
-        + 1
     )
 
     for file in files[:files_to_delete]:

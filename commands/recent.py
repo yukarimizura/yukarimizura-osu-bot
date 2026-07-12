@@ -93,13 +93,13 @@ class RecentCommands(commands.Cog):
                     f"Could not find osu! player `{username}`."
                 )
                 return
-
-
+            
             scores = await self.bot.osu.get_recent_scores(
                 user["id"],
                 mode=user["playmode"],
                 limit=1
             )
+
 
 
         if scores is None:
@@ -166,9 +166,7 @@ class RecentCommands(commands.Cog):
         # PP + FC CALCULATION
         # ------------------------------------------
 
-        performance = await self.bot.osu.calculate_score_performance(
-            score
-        )
+        performance = await self.bot.osu.calculate_score_performance(score)
 
         actual_pp = score.get("pp")
 

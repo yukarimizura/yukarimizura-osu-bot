@@ -14,7 +14,6 @@ BEATMAP_CACHE_DIR = os.path.join(
     "beatmaps"
 )
 
-
 async def get_beatmap_file(beatmap_id):
 
     os.makedirs(
@@ -114,11 +113,13 @@ async def calculate_score_performance(score):
         beatmap = Beatmap(path=file_path)
 
     except Exception as error:
-        print(
-            f"Could not parse beatmap "
-            f"{beatmap_id}: {error}"
-        )
-        return None
+
+            print(
+                f"Could not parse beatmap "
+                f"{beatmap_id}: {error}"
+            )
+
+            return None
 
 
     statistics = score.get(

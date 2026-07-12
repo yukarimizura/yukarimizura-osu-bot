@@ -1,5 +1,6 @@
 import aiohttp
 import time
+from api.pp_calculator import calculate_score_performance
 
 from config import OSU_CLIENT_ID, OSU_CLIENT_SECRET
 
@@ -75,7 +76,10 @@ class OsuAPI:
                 return self.token
 
     async def _get(self, url, params=None):
+        print("ENTER _GET")
+
         token = await self.get_token()
+        print("TOKEN:", token is not None)
 
         if token is None:
             return None
@@ -83,6 +87,8 @@ class OsuAPI:
         headers = {
             "Authorization": f"Bearer {token}"
         }
+
+        print("BEFORE REQUEST")
 
         async with self.session.get(
             url,
@@ -90,22 +96,18 @@ class OsuAPI:
             params=params
         ) as response:
 
+            print("STATUS:", response.status)
+
             if response.status != 200:
-                ...
+                error = await response.text()
+                print(error)
                 return None
 
+            print("RETURN JSON")
             return await response.json()
 
 
     async def get_user(self, username):
-        token = await self.get_token()
-
-        if token is None:
-            return None
-
-        headers = {
-            "Authorization": f"Bearer {token}"
-        }
 
         known_osu_id = find_osu_id_by_username(
             username
@@ -121,63 +123,29 @@ class OsuAPI:
             f"{lookup_value}"
         )
 
-        async with self.session.get(
-            url,
-            headers=headers
-        ) as response:
+        general_user = await self._get(url)
+        
+        if general_user is None:
+            return None
 
-            if response.status == 404:
-                return None
+        main_mode = general_user["playmode"]
+        user_id = general_user["id"]
 
-            if response.status != 200:
-                error = await response.text()
+        url = (
+            f"https://osu.ppy.sh/api/v2/users/"
+            f"{user_id}/{main_mode}"
+        )
 
-                print(
-                    f"osu! API error: {error}"
-                )
+        user = await self._get(url)
 
-                return None
-
-            general_user = await response.json()
-
-            main_mode = general_user["playmode"]
-            user_id = general_user["id"]
-
-            url = (
-                f"https://osu.ppy.sh/api/v2/users/"
-                f"{user_id}/{main_mode}"
-            )
-
-            async with self.session.get(
-                url,
-                headers=headers
-            ) as response:
-
-                if response.status != 200:
-                    error = await response.text()
-
-                    print(
-                        f"osu! API error: {error}"
-                    )
-
-                    return None
-
-                user = await response.json()
+        if user is None:
+            return None
 
         save_username_history(user)
 
         return user
 
     async def get_recent_scores(self, user_id, mode=None, limit=5):
-        token = await self.get_token()
-
-        if token is None:
-            return None
-
-        headers = {
-            "Authorization": f"Bearer {token}"
-        }
-
         params = {
             "limit": limit,
             "include_fails": 1
@@ -191,53 +159,35 @@ class OsuAPI:
             f"{user_id}/scores/recent"
         )
 
-        async with self.session.get(
+        print("GET RECENT:", url)
+        print("PARAMS:", params)
+
+
+        return await self._get(
             url,
-            headers=headers,
             params=params
-        ) as response:
-
-            if response.status != 200:
-                error = await response.text()
-                print(f"osu! recent scores API error: {error}")
-                return None
-
-            return await response.json()
+)
         
-    async def get_best_scores(self, user_id, mode="osu", limit=5):
-        token = await self.get_token()
-
-        if token is None:
-            return None
-
+    async def get_best_scores(
+        self,
+        user_id,
+        mode="osu",
+        limit=5
+    ):
         url = (
             f"https://osu.ppy.sh/api/v2/users/"
             f"{user_id}/scores/best"
         )
-
-        headers = {
-            "Authorization": f"Bearer {token}"
-        }
 
         params = {
             "mode": mode,
             "limit": limit
         }
 
-        async with self.session.get(
+        return await self._get(
             url,
-            headers=headers,
             params=params
-        ) as response:
-
-            if response.status != 200:
-                print(
-                    f"Failed to get best scores: "
-                    f"HTTP {response.status}"
-                )
-                return None
-
-            return await response.json()
+        )
 
     async def get_beatmap(
         self,
@@ -257,36 +207,25 @@ class OsuAPI:
         beatmap_id,
         mode="osu"
     ):
-        token = await self.get_token()
-
-        if token is None:
-            return None
-
-        headers = {
-            "Authorization": f"Bearer {token}"
-        }
-
-        params = {
-            "mode": mode
-        }
-
         url = (
             f"https://osu.ppy.sh/api/v2/"
             f"beatmaps/{beatmap_id}"
             f"/scores/users/{user_id}/all"
         )
 
-        async with self.session.get(
+        params = {
+            "mode": mode
+        }
+
+        result = await self._get(
             url,
-            headers=headers,
             params=params
-        ) as response:
+        )
 
-            text = await response.text()
+        if result is None:
+            return None
 
-            if response.status != 200:
-                return None
+        return result.get("scores", [])
 
-            result = await response.json()
-
-            return result.get("scores", [])
+    async def calculate_score_performance(self, score):
+        return await calculate_score_performance(score)

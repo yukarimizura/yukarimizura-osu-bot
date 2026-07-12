@@ -29,7 +29,7 @@ class OsuCommands(commands.Cog):
     ):
 
         async with ctx.typing():
-            user = await self.bot.osu.get_osu_user(username)
+            user = await self.bot.osu.get_user(username)
 
         if user is None:
             await ctx.send(
@@ -91,7 +91,7 @@ class OsuCommands(commands.Cog):
             )
 
         async with ctx.typing():
-            user = await self.bot.osu.get_osu_user(username)
+            user = await self.bot.osu.get_user(username)
 
         if user is None:
             await ctx.send(

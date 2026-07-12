@@ -63,6 +63,7 @@ class TopPaginationView(discord.ui.View):
         super().__init__(timeout=120)
 
         self.ctx = ctx
+        self.bot = bot
         self.user = user
         self.scores = scores
         self.mode_name = mode_name

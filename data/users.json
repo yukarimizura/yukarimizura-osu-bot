@@ -1,10 +1,5 @@
 {
     "linked_users": {
-        "321699322846642178": {
-            "osu_id": 8780223,
-            "username": "VtuberVoiceASMR",
-            "mode": "osu"
-        },
         "686883284373995529": {
             "osu_id": 22744236,
             "username": "Rumiyen",
@@ -28,6 +23,11 @@
         "596302325547794432": {
             "osu_id": 12430651,
             "username": "Zetsu-",
+            "mode": "osu"
+        },
+        "321699322846642178": {
+            "osu_id": 8780223,
+            "username": "VtuberVoiceASMR",
             "mode": "osu"
         }
     },

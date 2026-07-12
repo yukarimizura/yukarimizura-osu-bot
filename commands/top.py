@@ -3,11 +3,6 @@ import math
 import discord
 from discord.ext import commands
 
-from api import (
-    get_osu_user,
-    get_best_scores,
-    calculate_score_performance
-)
 
 from utils import (
     get_linked_user,
@@ -57,6 +52,7 @@ class TopPaginationView(discord.ui.View):
 
     def __init__(
         self,
+        bot,
         ctx,
         user,
         scores,
@@ -214,7 +210,7 @@ class TopPaginationView(discord.ui.View):
             # and accurate max combo.
 
             performance = (
-                await calculate_score_performance(
+                await self.bot.osu.calculate_score_performance(
                     score
                 )
             )
@@ -476,7 +472,7 @@ class TopCommands(commands.Cog):
 
         async with ctx.typing():
 
-            user = await get_osu_user(
+            user = await self.bot.osu.get_user(
                 username
             )
 
@@ -489,7 +485,7 @@ class TopCommands(commands.Cog):
                 return
 
 
-            scores = await get_best_scores(
+            scores = await self.bot.osu.get_best_scores(
                 user["id"],
                 mode=user["playmode"],
                 limit=100
@@ -525,6 +521,7 @@ class TopCommands(commands.Cog):
 
 
         view = TopPaginationView(
+            bot=self.bot,
             ctx=ctx,
             user=user,
             scores=scores,

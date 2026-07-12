@@ -1,7 +1,9 @@
 import asyncio
+import aiohttp
 
 import discord
 from discord.ext import commands
+from api.osu_api import OsuAPI
 
 from config import DISCORD_TOKEN
 from commands import EXTENSIONS
@@ -18,8 +20,11 @@ class OsuBot(commands.Bot):
             intents=intents
         )
 
+        self.osu = OsuAPI()
 
     async def setup_hook(self):
+
+        await self.osu.start()
 
         for extension in EXTENSIONS:
 
@@ -44,6 +49,12 @@ class OsuBot(commands.Bot):
         print(
             f"{self.user} has connected to Discord!"
         )
+
+    async def close(self):
+
+        await self.osu.close()
+
+        await super().close()
 
 
 async def main():

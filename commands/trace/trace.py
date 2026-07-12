@@ -3,12 +3,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from api import (
-    get_osu_user,
-    get_trace_scores,
-    get_beatmap
-)
-
 from utils import (
     get_linked_user,
     MODE_NAMES,
@@ -681,7 +675,7 @@ class TraceCommands(commands.Cog):
             async with ctx.typing():
                 pass
 
-        user = await get_osu_user(username)
+        user = await self.bot.osu.get_user(username)
 
         if user is None:
 
@@ -692,13 +686,13 @@ class TraceCommands(commands.Cog):
             return
 
 
-        scores = await get_trace_scores(
+        scores = await self.bot.osu.get_trace_scores(
             user["id"],
             beatmap_id,
             mode=user["playmode"]
         )
 
-        beatmap = await get_beatmap(
+        beatmap = await self.bot.osu.get_beatmap(
             beatmap_id
         )
 

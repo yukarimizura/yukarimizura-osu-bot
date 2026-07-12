@@ -2,8 +2,6 @@ import discord
 
 from discord.ext import commands
 
-from api import get_osu_user
-
 from utils import (
     MODE_NAMES,
     OSU_PINK,
@@ -31,7 +29,7 @@ class OsuCommands(commands.Cog):
     ):
 
         async with ctx.typing():
-            user = await get_osu_user(username)
+            user = await self.bot.osu.get_osu_user(username)
 
         if user is None:
             await ctx.send(
@@ -93,7 +91,7 @@ class OsuCommands(commands.Cog):
             )
 
         async with ctx.typing():
-            user = await get_osu_user(username)
+            user = await self.bot.osu.get_osu_user(username)
 
         if user is None:
             await ctx.send(

@@ -3,12 +3,6 @@ from datetime import datetime
 import discord
 from discord.ext import commands
 
-from api import (
-    get_osu_user,
-    get_recent_scores,
-    calculate_score_performance
-)
-
 from utils import (
     get_linked_user,
     MODE_NAMES,
@@ -89,7 +83,7 @@ class RecentCommands(commands.Cog):
 
         async with ctx.typing():
 
-            user = await get_osu_user(
+            user = await self.bot.osu.get_user(
                 username
             )
 
@@ -101,7 +95,7 @@ class RecentCommands(commands.Cog):
                 return
 
 
-            scores = await get_recent_scores(
+            scores = await self.bot.osu.get_recent_scores(
                 user["id"],
                 mode=user["playmode"],
                 limit=1
@@ -172,7 +166,7 @@ class RecentCommands(commands.Cog):
         # PP + FC CALCULATION
         # ------------------------------------------
 
-        performance = await calculate_score_performance(
+        performance = await self.bot.osu.calculate_score_performance(
             score
         )
 

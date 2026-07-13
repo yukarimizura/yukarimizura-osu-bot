@@ -1,6 +1,7 @@
 import os
 import aiohttp
 
+from collections import OrderedDict
 from rosu_pp_py import Beatmap, Performance, Difficulty
 from utils.cache import cleanup_cache, touch
 
@@ -13,6 +14,14 @@ BEATMAP_CACHE_DIR = os.path.join(
     "data",
     "beatmaps"
 )
+
+# ---------------------------------------------------------
+# Parsed Beatmap Cache (Memory)
+# ---------------------------------------------------------
+
+MAX_PARSED_BEATMAPS = 100
+
+_PARSED_BEATMAP_CACHE = OrderedDict()
 
 async def get_beatmap_file(session, beatmap_id):
 
@@ -62,6 +71,45 @@ async def get_beatmap_file(session, beatmap_id):
 
     return file_path
 
+async def load_beatmap(session, beatmap_id):
+    # Memory cache
+    beatmap = _PARSED_BEATMAP_CACHE.get(beatmap_id)
+
+    if beatmap is not None:
+        _PARSED_BEATMAP_CACHE.move_to_end(beatmap_id)
+        return beatmap
+    
+    # Disk cache
+
+    file_path = await get_beatmap_file(session, beatmap_id)
+
+    if file_path is None:
+        return None
+    
+    try:
+        beatmap = Beatmap(path=file_path)
+
+    except Exception as error:
+        print(
+            f"Could not parse beatmap "
+            f"{beatmap_id}: {error}"
+        )
+
+        return None
+    
+    # Save into memory
+    _PARSED_BEATMAP_CACHE[beatmap_id] = beatmap
+
+    _PARSED_BEATMAP_CACHE.move_to_end(beatmap_id)
+
+    #LRU Eviction
+
+    while(len(_PARSED_BEATMAP_CACHE) > MAX_PARSED_BEATMAPS):
+
+        _PARSED_BEATMAP_CACHE.popitem(last=False)
+
+        return beatmap
+
 
 def get_stat(statistics, *names):
     for name in names:
@@ -91,6 +139,51 @@ def extract_mods(score):
 
     return result
 
+def calculate_pp(
+    beatmap,
+    mods,
+    combo,
+    n300,
+    n100,
+    n50,
+    misses,
+    passed_objects=None
+):
+    """
+    Calculate PP for a score state.
+
+    Returns:
+        float | None
+    """
+
+    try:
+
+        kwargs = {
+            "mods": mods,
+            "combo": combo,
+            "n300": n300,
+            "n100": n100,
+            "n50": n50,
+            "misses": misses,
+        }
+
+        if passed_objects is not None:
+            kwargs["passed_objects"] = passed_objects
+
+        result = Performance(
+            **kwargs
+        ).calculate(beatmap)
+
+        return result.pp
+
+    except Exception as error:
+
+        print(
+            f"PP calculation failed: {error}"
+        )
+
+        return None
+
 
 async def calculate_score_performance(session, score):
     beatmap_data = score.get("beatmap")
@@ -100,26 +193,10 @@ async def calculate_score_performance(session, score):
 
     beatmap_id = beatmap_data["id"]
 
-    file_path = await get_beatmap_file(
-        session,
-        beatmap_id
-    )
+    beatmap = await load_beatmap(session,beatmap_id)
 
-    if file_path is None:
+    if beatmap is None:
         return None
-
-    try:
-        beatmap = Beatmap(path=file_path)
-
-    except Exception as error:
-
-            print(
-                f"Could not parse beatmap "
-                f"{beatmap_id}: {error}"
-            )
-
-            return None
-
 
     statistics = score.get(
         "statistics",
@@ -205,9 +282,11 @@ async def calculate_score_performance(session, score):
     # Actual PP
     # -------------------------
 
-    actual_pp = score.get("pp")
+    api_pp = score.get("pp")
+    actual_pp = api_pp
+    # Only calculate pp if osu API didn't provide it, or if the provided pp is 0.
+    if actual_pp is None:
 
-    try:
         total_hits = (
             count_300
             + count_100
@@ -215,29 +294,20 @@ async def calculate_score_performance(session, score):
             + count_miss
         )
 
-        performance_kwargs = {
-            "mods": mods,
-            "combo": current_combo,
-            "n300": count_300,
-            "n100": count_100,
-            "n50": count_50,
-            "misses": count_miss
-        }
+        passed_objects = None
 
-        # Failed plays only reached part of the map.
-        # Tell rosu-pp exactly how many objects were passed.
         if score.get("rank") == "F":
-            performance_kwargs["passed_objects"] = total_hits
+            passed_objects = total_hits
 
-        actual_result = Performance(
-            **performance_kwargs
-        ).calculate(beatmap)
-
-        actual_pp = actual_result.pp
-
-    except Exception as error:
-        print(
-            f"Actual PP calculation failed: {error}"
+        actual_pp = calculate_pp(
+            beatmap=beatmap,
+            mods=mods,
+            combo=current_combo,
+            n300=count_300,
+            n100=count_100,
+            n50=count_50,
+            misses=count_miss,
+            passed_objects=passed_objects
         )
 
     # -------------------------
@@ -292,24 +362,15 @@ async def calculate_score_performance(session, score):
         )
 
 
-    try:
-        fc_result = Performance(
-            mods=mods,
-            combo=max_combo,
-            n300=fc_count_300,
-            n100=count_100,
-            n50=count_50,
-            misses=0
-        ).calculate(beatmap)
-
-        fc_pp = fc_result.pp
-
-    except Exception as error:
-        print(
-            f"FC PP calculation failed: "
-            f"{error}"
-        )
-
+    fc_pp = calculate_pp(
+        beatmap=beatmap,
+        mods=mods,
+        combo=max_combo or current_combo,
+        n300=fc_count_300,
+        n100=count_100,
+        n50=count_50,
+        misses=0
+    )
 
     return {
         "actual_pp": actual_pp,

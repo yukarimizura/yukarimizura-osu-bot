@@ -244,7 +244,7 @@ class OsuAPI:
             url
         )
         logger.debug(
-            "PARAMS:", 
+            "PARAMS: %s",
             params
         )
 

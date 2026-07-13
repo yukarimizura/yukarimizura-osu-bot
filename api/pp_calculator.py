@@ -106,9 +106,8 @@ async def load_beatmap(session, beatmap_id):
         return None
     
     try:
-
         logger.debug(
-            f"Parsing beatmap {beatmap.id}."
+            f"Parsing beatmap {beatmap_id} from disk."
         )
 
         beatmap = Beatmap(path=file_path)
@@ -119,6 +118,10 @@ async def load_beatmap(session, beatmap_id):
         )
 
         return None
+    
+    logger.debug(
+        f"Successfully parsed beatmap {beatmap_id}."
+    )
     
     # Save into memory
     _PARSED_BEATMAP_CACHE[beatmap_id] = beatmap

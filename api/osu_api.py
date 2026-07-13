@@ -1,6 +1,8 @@
 import aiohttp
 import time
+import asyncio
 from api.pp_calculator import calculate_score_performance
+from config import HTTP_MAX_RETRIES, HTTP_RETRY_DELAY
 
 from config import OSU_CLIENT_ID, OSU_CLIENT_SECRET
 
@@ -22,7 +24,13 @@ class OsuAPI:
 
         if self.session is None:
 
-            self.session = aiohttp.ClientSession()
+            timeout = aiohttp.ClientTimeout(
+                total=15
+            )
+
+            self.session = aiohttp.ClientSession(
+                timeout=timeout
+            )
 
 
     async def close(self):
@@ -86,18 +94,63 @@ class OsuAPI:
             "Authorization": f"Bearer {token}"
         }
 
-        async with self.session.get(
-            url,
-            headers=headers,
-            params=params
-        ) as response:
+        for attempt in range(HTTP_MAX_RETRIES):
 
-            if response.status != 200:
-                error = await response.text()
-                print(error)
-                return None
+            try:
 
-            return await response.json()
+                async with self.session.get(
+                    url,
+                    headers=headers,
+                    params=params
+                ) as response:
+
+                    # Success
+                    if response.status == 200:
+                        return await response.json()
+
+                    # Retry if failed
+
+                    if response.status in (
+                        500,
+                        502,
+                        503,
+                        504
+                    ):
+                        if attempt < HTTP_MAX_RETRIES - 1:
+                            await asyncio.sleep(
+                                HTTP_RETRY_DELAY * (2 ** attempt)
+                            ) 
+                            continue
+
+                    # Everything Else
+                    error = await response.text()
+
+                    print(
+                        f"HTTP {response.status} "
+                        f"for {url}: {error}" # Much easier Debugging if error
+                    )
+
+                    return None
+                
+            except (
+                aiohttp.ClientConnectionError,
+                aiohttp.ClientOSError,
+                asyncio.TimeoutError
+            ) as error:
+                if attempt == HTTP_MAX_RETRIES - 1:
+                    print(
+                        f"Request failed after "
+                        f"{HTTP_MAX_RETRIES} attempts: "
+                        f"{error}"
+                    )
+
+                    return None
+                
+                await asyncio.sleep(
+                    HTTP_RETRY_DELAY * (2 ** attempt)
+                )
+
+        return None
 
     async def get_user(self, username):
 

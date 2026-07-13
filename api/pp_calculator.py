@@ -4,6 +4,7 @@ import aiohttp
 from collections import OrderedDict
 from rosu_pp_py import Beatmap, Performance, Difficulty
 from utils.cache import cleanup_cache, touch
+from config import MAX_PARSED_MAP
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
@@ -19,9 +20,18 @@ BEATMAP_CACHE_DIR = os.path.join(
 # Parsed Beatmap Cache (Memory)
 # ---------------------------------------------------------
 
-MAX_PARSED_BEATMAPS = 100
+MAX_PARSED_BEATMAPS = MAX_PARSED_MAP
+_PARSED_BEATMAP_CACHE: OrderedDict[
+    int, 
+    Beatmap
+    ] = OrderedDict()
 
-_PARSED_BEATMAP_CACHE: OrderedDict[str, Beatmap] = OrderedDict()
+# Difficulty Cache (Memory)
+MAX_DIFFICULTY_CACHE = MAX_PARSED_BEATMAPS * 5 # Since one beatmap can be several mods
+_DIFFICULTY_CACHE = OrderedDict[
+    tuple[int, tuple[str, ...]], 
+    object
+    ] = OrderedDict()
 
 async def get_beatmap_file(session, beatmap_id):
 
@@ -249,9 +259,29 @@ async def calculate_score_performance(session, score):
     )
 
     try:
-        difficulty_result = Difficulty(
-            mods=mods
-        ).calculate(beatmap)
+
+        #Cache difficulty, example Freedom dive + NM, freedom dive + HDDT, ensures each unique beatmap/mod combination has its own cached difficulty result.
+        difficulty_cache_key = (
+            beatmap_id, 
+            tuple(sorted(mods))
+            )
+
+        difficulty_result = _DIFFICULTY_CACHE.get(difficulty_cache_key)
+
+        if difficulty_result is None:
+            difficulty_result = Difficulty(
+                mods=mods
+            ).calculate(beatmap)
+
+            _DIFFICULTY_CACHE[difficulty_cache_key] = difficulty_result
+
+            _DIFFICULTY_CACHE.move_to_end(difficulty_cache_key)
+
+            while len(_DIFFICULTY_CACHE) > MAX_DIFFICULTY_CACHE:
+                _DIFFICULTY_CACHE.popitem(last=False)
+
+        else:
+            _DIFFICULTY_CACHE.move_to_end(difficulty_cache_key)
 
         calculated_max_combo = getattr(
             difficulty_result,

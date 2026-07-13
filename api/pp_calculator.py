@@ -5,6 +5,9 @@ from collections import OrderedDict
 from rosu_pp_py import Beatmap, Performance, Difficulty
 from utils.cache import cleanup_cache, touch
 from config import MAX_PARSED_MAP
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(os.path.abspath(__file__))
@@ -44,6 +47,10 @@ async def get_beatmap_file(session, beatmap_id):
 
         touch(file_path)
 
+        logger.debug(
+            f"Disk cache hit for beatmap {beatmap_id}"
+        )
+
         return file_path
 
     # Need a new slot
@@ -61,7 +68,7 @@ async def get_beatmap_file(session, beatmap_id):
 
         if response.status != 200:
 
-            print(
+            logger.error(
                 f"Failed downloading beatmap "
                 f"{beatmap_id}"
             )
@@ -69,6 +76,10 @@ async def get_beatmap_file(session, beatmap_id):
             return None
 
         content = await response.read()
+
+        logger.info(
+            f"Downloaded beatmap {beatmap_id} from osu!"
+        )
 
     with open(file_path, "wb") as file:
         file.write(content)
@@ -81,6 +92,10 @@ async def load_beatmap(session, beatmap_id):
 
     if beatmap is not None:
         _PARSED_BEATMAP_CACHE.move_to_end(beatmap_id)
+
+        logger.debug(
+            f"Memory cache hit for beatmap {beatmap_id}"
+        )
         return beatmap
     
     # Disk cache
@@ -91,12 +106,16 @@ async def load_beatmap(session, beatmap_id):
         return None
     
     try:
+
+        logger.debug(
+            f"Parsing beatmap {beatmap.id}."
+        )
+
         beatmap = Beatmap(path=file_path)
 
-    except Exception as error:
-        print(
-            f"Could not parse beatmap "
-            f"{beatmap_id}: {error}"
+    except Exception:
+        logger.exception(
+            f"Could not parse beatmap {beatmap_id}."
         )
 
         return None
@@ -104,13 +123,21 @@ async def load_beatmap(session, beatmap_id):
     # Save into memory
     _PARSED_BEATMAP_CACHE[beatmap_id] = beatmap
 
+    logger.debug(
+        f"Cached parsed beatmap {beatmap_id} in memory."
+    )
+
     _PARSED_BEATMAP_CACHE.move_to_end(beatmap_id)
 
     #LRU Eviction
 
     while len(_PARSED_BEATMAP_CACHE) > MAX_PARSED_BEATMAPS:
 
-        _PARSED_BEATMAP_CACHE.popitem(last=False)
+        evicted_id, _ = _PARSED_BEATMAP_CACHE.popitem(last=False)
+
+        logger.debug(
+            f"Evicted parsed beatmap {evicted_id} from memory cache."
+        )
 
     return beatmap
 
@@ -180,10 +207,11 @@ def calculate_pp(
 
         return result.pp
 
-    except Exception as error:
+    except Exception:
 
-        print(
-            f"PP calculation failed: {error}"
+        logger.exception(
+            f"Performance calculation failed "
+            f"for beatmap {beatmap.id}."
         )
 
         return None
@@ -263,19 +291,34 @@ async def calculate_score_performance(session, score):
         difficulty_result = _DIFFICULTY_CACHE.get(difficulty_cache_key)
 
         if difficulty_result is None:
+            logger.debug(
+                f"Calculating difficulty for beatmap "
+                f"{beatmap_id} ({'+'.join(mods) or 'NM'})."
+            )
+
             difficulty_result = Difficulty(
                 mods=mods
             ).calculate(beatmap)
+
 
             _DIFFICULTY_CACHE[difficulty_cache_key] = difficulty_result
 
             _DIFFICULTY_CACHE.move_to_end(difficulty_cache_key)
 
             while len(_DIFFICULTY_CACHE) > MAX_DIFFICULTY_CACHE:
-                _DIFFICULTY_CACHE.popitem(last=False)
+                evicted_key, _ = _DIFFICULTY_CACHE.popitem(last=False)
+
+                logger.debug(
+                    f"Evicted difficulty cache {evicted_key}."
+                )
 
         else:
             _DIFFICULTY_CACHE.move_to_end(difficulty_cache_key)
+
+            logger.debug(
+                f"Difficulty cache hit for beatmap "
+                f"{beatmap_id} ({'+'.join(mods) or 'NM'})."
+            )
 
         calculated_max_combo = getattr(
             difficulty_result,
@@ -295,10 +338,10 @@ async def calculate_score_performance(session, score):
         if calculated_stars is not None:
             star_rating = calculated_stars
 
-    except Exception as error:
-        print(
-            f"Difficulty calculation failed: "
-            f"{error}"
+    except Exception:
+        logger.exception(
+            f"Difficulty calculation failed "
+            f"for beatmap {beatmap_id}."
         )
 
 
@@ -310,6 +353,11 @@ async def calculate_score_performance(session, score):
     actual_pp = api_pp
     # Only calculate pp if osu API didn't provide it, or if the provided pp is 0.
     if actual_pp is None:
+
+        logger.debug(
+            f"osu! API did not provide PP for "
+            f"beatmap {beatmap_id}; calculating locally."
+        )
 
         total_hits = (
             count_300

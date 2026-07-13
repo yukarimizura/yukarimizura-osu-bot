@@ -2,9 +2,12 @@ import aiohttp
 import time
 import asyncio
 from api.pp_calculator import calculate_score_performance
+from utils.logger import get_logger
 from config import HTTP_MAX_RETRIES, HTTP_RETRY_DELAY, HTTP_MAX_CONCURRENT_REQUESTS
 
 from config import OSU_CLIENT_ID, OSU_CLIENT_SECRET
+
+logger = get_logger(__name__)
 
 from utils import (
     save_username_history,
@@ -36,11 +39,19 @@ class OsuAPI:
                 timeout=timeout
             )
 
+            logger.info(
+                "HTTP client session started."
+            )
+
     async def close(self):
 
         if self.session:
 
             await self.session.close()
+
+            logger.info(
+                "HTTP client session closed."
+            )
 
             self.session = None
 
@@ -66,7 +77,7 @@ class OsuAPI:
                 if response.status != 200:
                     error = await response.text()
 
-                    print(
+                    logger.error(
                         f"osu! authentication error: {error}"
                     )
 
@@ -75,6 +86,10 @@ class OsuAPI:
                 result = await response.json()
 
                 self.token = result["access_token"]
+
+                logger.info(
+                    "Successfully refreshed osu! OAuth token."
+                )
 
                 self.token_expire = (
                     time.time()
@@ -119,6 +134,11 @@ class OsuAPI:
                             503,
                             504
                         ):
+                            logger.warning(
+                                f"Retry {attempt + 1}/{HTTP_MAX_RETRIES} "
+                                f"for {url} (HTTP {response.status})"
+                            )
+
                             if attempt < HTTP_MAX_RETRIES - 1:
                                 await asyncio.sleep(
                                     HTTP_RETRY_DELAY * (2 ** attempt)
@@ -128,7 +148,7 @@ class OsuAPI:
                         # Everything Else
                         error = await response.text()
 
-                        print(
+                        logger.error(
                             f"HTTP {response.status} "
                             f"for {url}: {error}" # Much easier Debugging if error
                         )
@@ -141,10 +161,15 @@ class OsuAPI:
                 asyncio.TimeoutError
             ) as error:
                 if attempt == HTTP_MAX_RETRIES - 1:
-                    print(
+                    logger.error(
                         f"Request failed after "
                         f"{HTTP_MAX_RETRIES} attempts: "
                         f"{error}"
+                    )
+
+                    logger.warning(
+                        f"Retry {attempt + 1}/{HTTP_MAX_RETRIES} "
+                        f"for {url} ({error})"
                     )
 
                     return None
@@ -174,6 +199,9 @@ class OsuAPI:
         general_user = await self._get(url)
         
         if general_user is None:
+            logger.warning(
+                f"Failed to fetch user '{username}'."
+            )
             return None
 
         main_mode = general_user["playmode"]
@@ -187,6 +215,10 @@ class OsuAPI:
         user = await self._get(url)
 
         if user is None:
+            logger.warning(
+                f"Failed to fetch user mode profile "
+                f"for '{username}'."
+            )
             return None
 
         save_username_history(user)
@@ -207,8 +239,14 @@ class OsuAPI:
             f"{user_id}/scores/recent"
         )
 
-        print("GET RECENT:", url)
-        print("PARAMS:", params)
+        logger.debug(
+            f"GET RECENT: %s",
+            url
+        )
+        logger.debug(
+            "PARAMS:", 
+            params
+        )
 
 
         return await self._get(
@@ -271,6 +309,10 @@ class OsuAPI:
         )
 
         if result is None:
+            logger.warning(
+                f"Failed to fetch trace scores "
+                f"for beatmap {beatmap_id}."
+            )
             return None
 
         return result.get("scores", [])

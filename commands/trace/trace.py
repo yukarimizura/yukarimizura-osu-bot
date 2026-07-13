@@ -16,11 +16,10 @@ from .core import (
     build_history_entry
 )
 
-
-BEATMAP_REGEX = re.compile(
-    r"(?:https?://)?(?:osu\.)?ppy\.sh/(?:beatmaps/|b/|beatmapsets/\d+#(?:osu|mania|taiko|fruits)/)(\d+)"
+from .parser import (
+    BEATMAP_REGEX,
+    extract_beatmap_from_message
 )
-
 
 class TracePaginationView(discord.ui.View):
 
@@ -471,169 +470,57 @@ class TraceCommands(commands.Cog):
 
             if reference and reference.resolved:
 
-                replied = reference.resolved
-
-                #
-                # 1. Normal message content
-                #
-
-                match = BEATMAP_REGEX.search(
-                    replied.content or ""
+                beatmap_id = await extract_beatmap_from_message(
+                    reference.resolved
                 )
 
-                if match:
-
-                    beatmap_id = int(match.group(1))
-
-                #
-                # 2. Search embeds
-                #
-
-                if beatmap_id is None:
-
-                    for embed in replied.embeds:
-
-                        candidates = []
-
-                        if embed.url:
-                            candidates.append(embed.url)
-
-                        if embed.title:
-                            candidates.append(embed.title)
-
-                        if embed.description:
-                            candidates.append(embed.description)
-
-                        if embed.author and embed.author.url:
-                            candidates.append(embed.author.url)
-
-                        if embed.footer and embed.footer.text:
-                            candidates.append(embed.footer.text)
-
-                        #
-                        # Search every candidate
-                        #
-
-                        found = False
-
-                        for text in candidates:
-
-                            match = BEATMAP_REGEX.search(text)
-
-                            if match:
-
-                                beatmap_id = int(match.group(1))
-                                found = True
-                                break
-
-                        if found:
-                            break
         # ------------------------------------------
         # RECENT CHANNEL HISTORY
         # ------------------------------------------
 
+        
         if beatmap_id is None:
 
-            try:
-                async for message in ctx.channel.history(limit=50):
-                    #
-                    # 1. Normal message
-                    #
+            async for message in ctx.channel.history(limit=50):
 
-                    match = BEATMAP_REGEX.search(
-                        message.content
+                candidates = [message]
+
+                if message.reference:
+
+                    replied = message.reference.resolved
+
+                    if replied is None:
+
+                        try:
+                            replied = await ctx.channel.fetch_message(
+                                message.reference.message_id
+                            )
+
+                        except (
+                            discord.NotFound,
+                            discord.Forbidden,
+                            discord.HTTPException
+                        ):
+                            replied = None
+
+                    if replied:
+                        candidates.append(replied)
+
+                for candidate in candidates:
+
+                    beatmap_id = await extract_beatmap_from_message(
+                        candidate
                     )
-
-                    if match:
-
-                        beatmap_id = int(
-                            match.group(1)
-                        )
-
-                        break
-
-                    #
-                    # 2. Embedded messages
-                    #
-
-                    for embed in message.embeds:
-
-                        #
-                        # Embed URL
-                        #
-
-                        if embed.url:
-
-                            match = BEATMAP_REGEX.search(
-                                embed.url
-                            )
-
-                            if match:
-
-                                beatmap_id = int(
-                                    match.group(1)
-                                )
-
-                                break
-
-                        #
-                        # Embed description
-                        #
-
-                        if embed.description:
-
-                            match = BEATMAP_REGEX.search(
-                                embed.description
-                            )
-
-                            if match:
-
-                                beatmap_id = int(
-                                    match.group(1)
-                                )
-
-                                break
-
-                        #
-                        # Embed title
-                        #
-
-                        if embed.title:
-
-                            match = BEATMAP_REGEX.search(
-                                embed.title
-                            )
-
-                            if match:
-
-                                beatmap_id = int(
-                                    match.group(1)
-                                )
-
-                                break
-
-                        #
-                        # Author URL
-                        #
-
-                        if embed.author and embed.author.url:
-
-                            match = BEATMAP_REGEX.search(
-                                embed.author.url
-                            )
-
-                            if match:
-
-                                beatmap_id = int(
-                                    match.group(1)
-                                )
-
-                                break
 
                     if beatmap_id is not None:
                         break
-            except discord.Forbidden:
-                pass
+
+                if beatmap_id is not None:
+                    break
+
+                    
+
+
         # ------------------------------------------
         # USERNAME
         # ------------------------------------------

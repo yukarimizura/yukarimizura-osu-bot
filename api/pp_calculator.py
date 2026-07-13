@@ -21,7 +21,7 @@ BEATMAP_CACHE_DIR = os.path.join(
 
 MAX_PARSED_BEATMAPS = 100
 
-_PARSED_BEATMAP_CACHE = OrderedDict()
+_PARSED_BEATMAP_CACHE: OrderedDict[str, Beatmap] = OrderedDict()
 
 async def get_beatmap_file(session, beatmap_id):
 
@@ -104,11 +104,11 @@ async def load_beatmap(session, beatmap_id):
 
     #LRU Eviction
 
-    while(len(_PARSED_BEATMAP_CACHE) > MAX_PARSED_BEATMAPS):
+    while len(_PARSED_BEATMAP_CACHE) > MAX_PARSED_BEATMAPS:
 
         _PARSED_BEATMAP_CACHE.popitem(last=False)
 
-        return beatmap
+    return beatmap
 
 
 def get_stat(statistics, *names):

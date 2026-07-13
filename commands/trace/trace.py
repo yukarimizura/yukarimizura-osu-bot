@@ -726,11 +726,6 @@ class TraceCommands(commands.Cog):
         # SORT
         # ------------------------------------------
 
-        scores.sort(
-            key=lambda score: score["created_at"],
-            reverse=True
-        )
-
         pb = max(
             scores,
             key=lambda s: s.get("pp") or 0

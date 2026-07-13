@@ -21,17 +21,11 @@ BEATMAP_CACHE_DIR = os.path.join(
 # ---------------------------------------------------------
 
 MAX_PARSED_BEATMAPS = MAX_PARSED_MAP
-_PARSED_BEATMAP_CACHE: OrderedDict[
-    int, 
-    Beatmap
-    ] = OrderedDict()
+_PARSED_BEATMAP_CACHE = OrderedDict()
 
 # Difficulty Cache (Memory)
 MAX_DIFFICULTY_CACHE = MAX_PARSED_BEATMAPS * 5 # Since one beatmap can be several mods
-_DIFFICULTY_CACHE = OrderedDict[
-    tuple[int, tuple[str, ...]], 
-    object
-    ] = OrderedDict()
+_DIFFICULTY_CACHE = OrderedDict()
 
 async def get_beatmap_file(session, beatmap_id):
 

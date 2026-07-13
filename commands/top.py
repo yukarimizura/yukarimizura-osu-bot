@@ -60,7 +60,7 @@ class TopPaginationView(discord.ui.View):
         per_page=5
     ):
 
-        super().__init__(timeout=120)
+        super().__init__(timeout=900)
 
         self.ctx = ctx
         self.bot = bot

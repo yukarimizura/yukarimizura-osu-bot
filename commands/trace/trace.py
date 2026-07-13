@@ -34,7 +34,7 @@ class TracePaginationView(discord.ui.View):
         per_page=4
     ):
 
-        super().__init__(timeout=120)
+        super().__init__(timeout=900)
 
         self.ctx = ctx
         self.user = user
@@ -730,6 +730,23 @@ class TraceCommands(commands.Cog):
             key=lambda score: score["created_at"],
             reverse=True
         )
+
+        pb = max(
+            scores,
+            key=lambda s: s.get("pp") or 0
+        )
+
+        history_scores = [
+            s for s in scores
+            if s is not pb
+        ]
+
+        history_scores.sort(
+            key=lambda s: s["created_at"],
+            reverse=True
+        )
+
+        scores = [pb] + history_scores
 
         mode_name = MODE_NAMES.get(
             user["playmode"],

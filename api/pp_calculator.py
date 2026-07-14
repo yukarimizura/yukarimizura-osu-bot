@@ -19,6 +19,8 @@ BEATMAP_CACHE_DIR = os.path.join(
     "beatmaps"
 )
 
+beatmap_cache = {}
+
 # ---------------------------------------------------------
 # Parsed Beatmap Cache (Memory)
 # ---------------------------------------------------------
@@ -214,7 +216,7 @@ def calculate_pp(
 
         logger.exception(
             f"Performance calculation failed "
-            f"for beatmap {beatmap.id}."
+            f"for beatmap {getattr(beatmap, 'id', 'unknown')}."
         )
 
         return None

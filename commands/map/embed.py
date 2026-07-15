@@ -257,7 +257,9 @@ async def create_map_embed(beatmap, params, session):
     # MULTI ACC
     # -------------------------
     acc_values = [95, 97, 99, 100]
-    acc_lines = []
+
+    acc_headers = []
+    acc_pps = []
 
     for a in acc_values:
         n300, n100, n50 = estimate_hits(
@@ -278,7 +280,11 @@ async def create_map_embed(beatmap, params, session):
             misses=0
         ) or 0
 
-        acc_lines.append(f"**{a}%** → {value:.0f}pp")
+        acc_headers.append(f"{a}%")
+        acc_pps.append(f"{value:.0f}pp")
+
+    acc_header_line = " | ".join(acc_headers)
+    acc_pp_line = " | ".join(acc_pps)
 
     # -------------------------
     # EMBED
@@ -286,31 +292,48 @@ async def create_map_embed(beatmap, params, session):
 
 
     embed = discord.Embed(
-        title = f"{artist} - {title} [{version}]",
-        color = OSU_PINK,
+        title=f"{artist} - {title} [{version}]",
+        color=OSU_PINK,
     )
 
     embed.set_thumbnail(url=thumbnail)
 
+    embed.description = (
+        f"**⭐ {stars:.2f} • {mod_str}**\n"
+        f"Mapped by **{creator}**"
+    )
+
     embed.add_field(
-        name = "Map Info",
-        value = (
-            f"⭐ {stars:.2f} • {mod_str} | BPM {bpm}\n"
-            f"CS {cs} • AR {ar} • OD {od} • HP {hp}\n"
-            f"Length: {minutes}:{second:02d}\n"
-            f"Max Combo: {max_combo}"
+        name="📊 Map Stats",
+        value=(
+            f"`{bpm}` **BPM** • `{minutes}:{second:02d}` • `{max_combo}x`\n"
+            f"**CS** `{cs}` • **AR** `{ar}` • **OD** `{od}` • **HP** `{hp}`"
         ),
         inline=False
     )
 
     embed.add_field(
-        name = "PP Simulation",
-        value = (
-            f"🎯 {acc:.2f}% → **{pp:.0f}pp**\n"
-            f"💯 FC → **{fc_pp:.0f}pp**\n\n"
-            + "\n".join(acc_lines)
+        name="🎯 Objects",
+        value=(
+            f"Circle: {map_info['circles']} "
+            f"Sliders: {map_info['sliders']} "
+            f"Spinners: {map_info['spinners']}"
+        ),
+        inline=True
+    )
+
+    embed.add_field(
+        name="💎 PP Calculator",
+        value=(
+            f"**Accuracy**\n"
+            f"`{acc_header_line}`\n"
+            f"`{acc_pp_line}`"
         ),
         inline=False
+    )
+
+    embed.set_footer(
+        text=f"Beatmap ID: {beatmap_id}"
     )
 
     embed.set_footer(text = f"Mapped by {creator}")

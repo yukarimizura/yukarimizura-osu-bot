@@ -4,5 +4,6 @@ EXTENSIONS = [
     "commands.recent",
     "commands.top",
     "commands.trace",
-    "commands.map"
+    "commands.map",
+    "commands.owner",
 ]

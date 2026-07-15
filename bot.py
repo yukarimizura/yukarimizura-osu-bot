@@ -36,14 +36,6 @@ class OsuBot(commands.Bot):
                 f"Loaded: {extension}"
             )
 
-
-        synced = await self.tree.sync()
-
-        print(
-            f"Synced {len(synced)} slash commands."
-        )
-
-
     async def on_ready(self):
 
         print(

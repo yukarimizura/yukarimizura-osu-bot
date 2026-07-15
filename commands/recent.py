@@ -293,6 +293,40 @@ class RecentCommands(commands.Cog):
             "count_miss"
         )
 
+        # ------------------------------------------
+        # COMPLETION MAP PROGRESS
+        # ------------------------------------------
+
+        completion = None
+
+        passed_objects = score.get("passed_objects")
+
+        total_objects = (
+            beatmap.get("count_circles", 0)
+            + beatmap.get("count_sliders", 0)
+            + beatmap.get("count_spinners", 0)
+        )
+
+        if rank == "F" and total_objects > 0:
+            if passed_objects is not None:
+                completion = (
+                    passed_objects
+                    / total_objects
+                    * 100
+                )
+
+            else:
+                completion = (
+                    (
+                    count_300
+                    + count_100
+                    + count_50
+                    + count_miss
+                )
+                / total_objects
+                * 100
+            )
+
 
         # ------------------------------------------
         # CREATE EMBED
@@ -325,11 +359,14 @@ class RecentCommands(commands.Cog):
         )
 
 
+        combo_value = f"**{combo}x / {max_combo}x** · `{mods}`"
+
+        if completion is not None:
+            combo_value += f"\n**{completion:.2f}%** Progress"
+
         embed.add_field(
             name="Combo & Mods",
-            value=(
-                f"**{combo_text}** · `{mods}`"
-            ),
+            value=combo_value,
             inline=True
         )
 

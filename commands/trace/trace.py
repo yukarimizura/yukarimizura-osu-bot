@@ -426,12 +426,6 @@ class TraceCommands(commands.Cog):
                     username = " ".join(remaining)
 
 
-        #debug
-
-        print(f"username={username!r}")
-        print(f"beatmap_id={beatmap_id!r}")
-
-
         # ------------------------------------------
         # Reply detection
         # ------------------------------------------

@@ -374,10 +374,8 @@ class TraceCommands(commands.Cog):
     async def trace(
         self,
         ctx: commands.Context,
-        username: str = None,
-        beatmap: str = None,
-        *,
-        query: str = None
+        username: str | None = None,
+        beatmap: str | None = None,
     ):
         
 
@@ -385,6 +383,7 @@ class TraceCommands(commands.Cog):
         # FIND BEATMAP
         # ------------------------------------------
 
+        username = None
         beatmap_id = None
 
         # Prefix command:
@@ -393,70 +392,44 @@ class TraceCommands(commands.Cog):
         # PREFIX COMMAND PARSER
         # ------------------------------------------
 
-        if ctx.interaction is None:
-
-            query = ctx.view.buffer[ctx.view.index:].strip()
-
-            username = None
-            beatmap = None
-
-            #
-            # Beatmap URL
-            #
-
-            match = BEATMAP_REGEX.search(query)
-
-            if match:
-
-                beatmap = match.group(0)
-
-                query = query.replace(
-                    match.group(0),
-                    ""
-                ).strip()
-
-            #
-            # Beatmap ID
-            #
-
-            if beatmap is None:
-
-                tokens = query.split()
-
-                for token in tokens:
-
-                    if token.isdigit():
-
-                        beatmap = token
-
-                        query = query.replace(
-                            token,
-                            ""
-                        ).strip()
-
-                        break
-
-            #
-            # Remaining text is username
-            #
+        if beatmap:
+            if beatmap.isdigit():
+                beatmap_id = int(beatmap)
+            else:
+                match = BEATMAP_REGEX.search(beatmap)
+                if match:
+                    beatmap_id = int(match.group(1))
+        
+        if not ctx.interaction:
+            content = ctx.message.content
+            prefix = ctx.prefix + ctx.invoked_with
+            query = content[len(prefix):].strip()
 
             if query:
+                remaining = []
 
-                username = query
+                for token in query.split():
+
+                    if token.isdigit():
+                        beatmap_id = int(token)
+                        continue
+
+                    match = BEATMAP_REGEX.search(token)
+
+                    if match:
+                        beatmap_id = int(match.group(1))
+                        continue
+                    
+                    remaining.append(token)
+
+                if remaining:
+                    username = " ".join(remaining)
 
 
-        # URL / Beatmap ID
-        if beatmap:
+        #debug
 
-            match = BEATMAP_REGEX.search(beatmap)
-
-            if match:
-
-                beatmap_id = int(match.group(1))
-
-            elif beatmap.isdigit():
-
-                beatmap_id = int(beatmap)
+        print(f"username={username!r}")
+        print(f"beatmap_id={beatmap_id!r}")
 
 
         # ------------------------------------------

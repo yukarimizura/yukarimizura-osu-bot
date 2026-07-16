@@ -182,6 +182,15 @@ def get_grade(score):
         "🔴 F"
     )
 
+def get_mods(score):
+
+    mods = score.get("mods", [])
+
+    if not mods:
+        return "NM"
+    
+    return "".join(mods)
+
 
 # --------------------------------------------------------
 # Personal Best
@@ -191,6 +200,7 @@ def build_pb_section(score):
 
     return (
         f"{get_grade(score)} • "
+        f"`+{get_mods(score)}` • "
         f"**{get_pp(score):.2f}pp**\n"
 
         f"**{get_acc(score):.2f}%** • "
@@ -289,12 +299,13 @@ def build_history_entry(
     history = (
 
         f"{get_grade(score)} • "
+        f"`+{get_mods(score)}` • "
         f"**{get_pp(score):.2f}pp**\n"
 
         f"**{get_acc(score):.2f}%** • "
         f"**{get_combo(score):,}x**\n"
 
-        f"❌ {get_miss(score)} miss\n"
+        f"❌ **{get_miss(score)} miss**\n"
 
         f"🕒 {relative_time(get_date(score))}"
 

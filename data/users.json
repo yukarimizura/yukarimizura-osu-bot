@@ -29,6 +29,11 @@
             "osu_id": 8780223,
             "username": "VtuberVoiceASMR",
             "mode": "osu"
+        },
+        "611035107029155843": {
+            "osu_id": 18478852,
+            "username": "Reifan123",
+            "mode": "osu"
         }
     },
     "username_history": {
@@ -54,6 +59,7 @@
         "zzspectrezz": 12430651,
         "whitecat": 4504101,
         "ezhg": 4504101,
-        "blackdog5": 4504101
+        "blackdog5": 4504101,
+        "reifan123": 18478852
     }
 }

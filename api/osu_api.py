@@ -102,7 +102,6 @@ class OsuAPI:
     async def _get(self, url, params=None):
 
         token = await self.get_token()
-
         if token is None:
             return None
 
@@ -111,22 +110,23 @@ class OsuAPI:
         }
 
         for attempt in range(HTTP_MAX_RETRIES):
-
             try:
-
                 async with self.request_semaphore:
-
                     async with self.session.get(
                         url,
                         headers=headers,
                         params=params
                     ) as response:
-
                         # Success
                         if response.status == 200:
                             return await response.json()
 
                         # Retry if failed
+                        if response.status == 429:
+                            retry_after = float(response.headers.get("Retry-After", HTTP_RETRY_DELAY))
+                            logger.warning(f"Rate limited on {url}. Waiting {retry_after}s...")
+                            await asyncio.sleep(retry_after)
+                            continue
 
                         if response.status in (
                             500,
@@ -152,7 +152,6 @@ class OsuAPI:
                             f"HTTP {response.status} "
                             f"for {url}: {error}" # Much easier Debugging if error
                         )
-
                         return None
                 
             except (

@@ -1,24 +1,16 @@
 import re
 
 MOD_ALIASES = {
-    "HD": "HD",
-    "HR": "HR",
-    "DT": "DT",
-    "NC": "NC",
-    "EZ": "EZ",
-    "FL": "FL",
-    "HT": "HT",
-    "SD": "SD",
-    "PF": "PF",
+    "NF": "NF", "EZ": "EZ", "TD": "TD", "HD": "HD", "HR": "HR",
+    "SD": "SD", "DT": "DT", "RX": "RX", "HT": "HT", "NC": "NC",
+    "FL": "FL", "AT": "AT", "SO": "SO", "AP": "AP", "PF": "PF",
 }
 
-
-def parse_score_params(arg: str | None):
+def parse_score_params(arg: str | None) -> dict:
     if not arg:
         return {}
 
     tokens = arg.split()
-
     mods = []
     accuracy = None
     misses = None
@@ -31,22 +23,17 @@ def parse_score_params(arg: str | None):
         # -------------------------
         # MODS
         # -------------------------
-        if token_upper.startswith("+"):
-            token_upper = token_upper[1:]
-
+        clean_mods = token_upper.lstrip("+")
         if token_lower == "nm":
             mods = []
             continue
 
         if (
-            len(token_upper) >= 2
-            and len(token_upper) % 2 == 0
-            and all(token_upper[i:i+2] in MOD_ALIASES for i in range(0, len(token_upper), 2))
+            len(clean_mods) >= 2
+            and len(clean_mods) % 2 == 0
+            and all(clean_mods[i:i+2] in MOD_ALIASES for i in range(0, len(clean_mods), 2))
         ):
-            mods.extend(
-                token_upper[i:i+2]
-                for i in range(0, len(token_upper), 2)
-            )
+            mods.extend(clean_mods[i:i+2] for i in range(0, len(clean_mods), 2))
             continue
 
         # -------------------------
@@ -54,17 +41,20 @@ def parse_score_params(arg: str | None):
         # -------------------------
         if "%" in token:
             try:
-                accuracy = float(token.replace("%", ""))
-                continue
-            except:
+                val = float(token.replace("%", ""))
+                if 0 <= val <= 100:
+                    accuracy = val
+                    continue
+            except ValueError:
                 pass
 
         if token_lower.startswith("acc="):
             try:
-                value = token.split("=")[1].replace("%", "")
-                accuracy = float(value)
-                continue
-            except:
+                val = float(token.split("=")[1].replace("%", ""))
+                if 0 <= val <= 100:
+                    accuracy = val
+                    continue
+            except ValueError:
                 pass
 
         # -------------------------
@@ -74,27 +64,25 @@ def parse_score_params(arg: str | None):
             misses = 0
             continue
 
-        if token.endswith("m"):
-            try:
-                misses = int(token[:-1])
-                continue
-            except:
-                pass
+        if token_lower.endswith("m") and token[:-1].isdigit():
+            misses = int(token[:-1])
+            continue
 
         if token_lower.startswith("miss="):
             try:
                 misses = int(token.split("=")[1])
                 continue
-            except:
+            except ValueError:
                 pass
 
         # -------------------------
         # BEATMAP ID
         # -------------------------
         if token.isdigit():
+            # Treat large integer IDs as beatmap IDs
             beatmap_id = int(token)
 
-    # remove duplicate mods
+    # Deduplicate while preserving order
     mods = list(dict.fromkeys(mods))
 
     return {

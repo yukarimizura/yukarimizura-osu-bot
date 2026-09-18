@@ -26,7 +26,7 @@ _DIFFICULTY_CACHE = OrderedDict()
 
 async def get_beatmap_file(session, beatmap_id):
     os.makedirs(BEATMAP_CACHE_DIR, exist_ok=True)
-    file_path = os.path_join(
+    file_path = os.path.join(
         BEATMAP_CACHE_DIR,
         f"{beatmap_id}.osu"
     )
@@ -36,7 +36,7 @@ async def get_beatmap_file(session, beatmap_id):
         return file_path
 
     cleanup_cache(BEATMAP_CACHE_DIR, ".osu")
-    url = f"https://osu.ppy.sh./osu/{beatmap_id}"
+    url = f"https://osu.ppy.sh/osu/{beatmap_id}"
 
     async with session.get(url) as response:
         if response.status != 200:

@@ -1,5 +1,4 @@
 import discord
-
 from discord.ext import commands
 
 from utils import (
@@ -16,91 +15,58 @@ class OsuCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-
     @commands.hybrid_command(
         name="link",
         description="Link your Discord account to your osu! account."
     )
-    async def link(
-        self,
-        ctx: commands.Context,
-        *,
-        username: str
-    ):
-
+    async def link(self, ctx: commands.Context, *, username: str):
         async with ctx.typing():
             user = await self.bot.osu.get_user(username)
 
         if user is None:
-            await ctx.send(
-                f"Could not find osu! player `{username}`."
-            )
+            await ctx.send(f"Could not find osu! player `{username}`.")
             return
 
-        link_user(
-            ctx.author.id,
-            user
-        )
+        link_user(ctx.author.id, user)
+        await ctx.send(f"Successfully linked {ctx.author.mention} to **{user['username']}**!")
 
-        await ctx.send(
-            f"Successfully linked "
-            f"{ctx.author.mention} to "
-            f"**{user['username']}**!"
-        )
-    @commands.command()
-    async def unlink(self, ctx):
-
+    @commands.hybrid_command(
+        name="unlink",
+        description="Unlink your Discord account from osu!."
+    )
+    async def unlink(self, ctx: commands.Context):
         success = unlink_user(ctx.author.id)
 
         if not success:
-            await ctx.send(
-                "You don't have an osu! account linked."
-            )
+            await ctx.send("You don't have an osu! account linked.")
             return
 
-        await ctx.send(
-            f"Successfully unlinked {ctx.author.mention}'s osu! account."
-        )
+        await ctx.send(f"Successfully unlinked {ctx.author.mention}'s osu! account.")
 
     @commands.hybrid_command(
         name="osu",
         description="Show an osu! player's profile."
     )
-    async def osu(
-        self,
-        ctx: commands.Context,
-        *,
-        username: str = None
-    ):
-
+    async def osu(self, ctx: commands.Context, *, username: str = None):
         if username is None:
-
-            linked_user = get_linked_user(
-                ctx.author.id
-            )
-
+            linked_user = get_linked_user(ctx.author.id)
             if linked_user is None:
                 await ctx.send(
                     "You haven't linked an osu! account yet. "
-                    "Use `!link <username>` first."
+                    "Use `/link <username>` first."
                 )
                 return
-
-            username = str(
-                linked_user["osu_id"]
-            )
+            username = str(linked_user["osu_id"])
 
         async with ctx.typing():
             user = await self.bot.osu.get_user(username)
 
         if user is None:
-            await ctx.send(
-                f"Could not find osu! player `{username}`."
-            )
+            await ctx.send(f"Could not find osu! player `{username}`.")
             return
 
         main_mode = user["playmode"]
-        stats = user["statistics"]
+        stats = user.get("statistics", {})
 
         global_rank = stats.get("global_rank")
         country_rank = stats.get("country_rank")
@@ -110,66 +76,30 @@ class OsuCommands(commands.Cog):
 
         embed = discord.Embed(
             title=user["username"],
-            url=(
-                f"https://osu.ppy.sh/users/"
-                f"{user['id']}"
-            ),
+            url=f"https://osu.ppy.sh/users/{user['id']}",
             color=OSU_PINK
         )
 
-        embed.set_thumbnail(
-            url=user["avatar_url"]
-        )
+        embed.set_thumbnail(url=user["avatar_url"])
 
         embed.add_field(
             name="Global Rank",
-            value=(
-                f"#{global_rank:,}"
-                if global_rank
-                else "N/A"
-            ),
+            value=f"#{global_rank:,}" if global_rank else "N/A",
             inline=True
         )
-
         embed.add_field(
             name="Country Rank",
-            value=(
-                f"#{country_rank:,}"
-                if country_rank
-                else "N/A"
-            ),
+            value=f"#{country_rank:,}" if country_rank else "N/A",
             inline=True
         )
+        embed.add_field(name="PP", value=f"{pp:,.2f}", inline=True)
+        embed.add_field(name="Accuracy", value=f"{accuracy:.2f}%", inline=True)
+        embed.add_field(name="Play Count", value=f"{play_count:,}", inline=True)
 
-        embed.add_field(
-            name="PP",
-            value=f"{pp:,.2f}",
-            inline=True
-        )
-
-        embed.add_field(
-            name="Accuracy",
-            value=f"{accuracy:.2f}%",
-            inline=True
-        )
-
-        embed.add_field(
-            name="Play Count",
-            value=f"{play_count:,}",
-            inline=True
-        )
-
-        embed.set_footer(
-            text=MODE_NAMES.get(
-                main_mode,
-                main_mode
-            )
-        )
+        embed.set_footer(text=MODE_NAMES.get(main_mode, main_mode))
 
         await ctx.send(embed=embed)
 
 
 async def setup(bot):
-    await bot.add_cog(
-        OsuCommands(bot)
-    )
+    await bot.add_cog(OsuCommands(bot))

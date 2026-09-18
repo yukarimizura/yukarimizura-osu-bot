@@ -21,7 +21,7 @@ class Map(commands.Cog):
             await ctx.typing()
 
         params = parse_score_params(arg) if arg else {}
-        beatmap_id = await resolve_beatmap_id(ctx, arg)
+        beatmap_id = params.get("beatmap_id") or await resolve_beatmap_id(ctx, arg)
 
         if beatmap_id is None:
             await ctx.send("Provide a beatmap link, ID, or reply to a message containing one.")

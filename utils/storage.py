@@ -1,5 +1,6 @@
 import json
 import os
+import asyncio
 
 
 DATA_FILE = os.path.join(
@@ -8,100 +9,52 @@ DATA_FILE = os.path.join(
     "users.json"
 )
 
+_CACHE = {"linked_users": {}, "username_history": {}}
 
-def get_empty_data():
-    return {
-        "linked_users": {},
-        "username_history": {}
-    }
+def init_storage():
+    global _CACHE
+    if os.path.exists(DATA_FILE):
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                _CACHE = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            _CACHE = {"linked_users": {}, "username_history": {}}
 
-
-def load_data():
-    if not os.path.exists(DATA_FILE):
-        return get_empty_data()
-
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as file:
-            return json.load(file)
-
-    except (json.JSONDecodeError, OSError):
-        return get_empty_data()
-
-
-def save_data(data):
-    os.makedirs(
-        os.path.dirname(DATA_FILE),
-        exist_ok=True
-    )
-
+def _write_to_disk():
+    os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
     with open(DATA_FILE, "w", encoding="utf-8") as file:
-        json.dump(
-            data,
-            file,
-            indent=4,
-            ensure_ascii=False
-        )
+        json.dump(_CACHE, file, indent=4, ensure_ascii=False)
 
+async def save_data_async():
+    await asyncio.to_thread(_write_to_disk)
 
 def link_user(discord_id, osu_user):
-    data = load_data()
-
-    data["linked_users"][str(discord_id)] = {
+    _CACHE["linked_users"][str(discord_id)] = {
         "osu_id": osu_user["id"],
         "username": osu_user["username"],
         "mode": osu_user["playmode"]
     }
-
-    save_data(data)
-
+    asyncio.create_task(save_data_async())
 
 def get_linked_user(discord_id):
-    data = load_data()
-
-    return data["linked_users"].get(
-        str(discord_id)
-    )
-
+    return _CACHE["linked_users"].get(str(discord_id))
 
 def save_username_history(osu_user):
-    data = load_data()
-
-    osu_id = osu_user["id"]
-
-    current_username = osu_user["username"]
-
-    data["username_history"][
-        current_username.lower()
-    ] = osu_id
-
-    for old_name in osu_user.get(
-        "previous_usernames",
-        []
-    ):
-        data["username_history"][
-            old_name.lower()
-        ] = osu_id
-
-    save_data(data)
-
+    current = osu_user["username"].lower()
+    _CACHE["username_history"][current] = osu_user["id"]
+    for old_name in osu_user.get("previous_usernames", []):
+        _CACHE["username_history"][old_name.lower()] = osu_user["id"]
+    asyncio.create_task(save_data_async())
 
 def find_osu_id_by_username(username):
-    data = load_data()
+    return _CACHE["username_history"].get(username.lower())
 
-    return data["username_history"].get(
-        username.lower()
-    )
-
-def unlink_user(discord_id):
-    data = load_data()
-
+def unlink(discord_id):
     discord_id = str(discord_id)
+    if discord_id in _CACHE["linked_users"]:
+        del _CACHE["linked_users"][discord_id]
+        asyncio.create_task(save_data_async())
+        return True
+    return False
 
-    if discord_id not in data["linked_users"]:
-        return False
-
-    del data["linked_users"][discord_id]
-
-    save_data(data)
-
-    return True
+init_storage()

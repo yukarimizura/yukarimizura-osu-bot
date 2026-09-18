@@ -15,7 +15,7 @@ from .core import (
     build_history_entry
 )
 
-from .parser import (
+from utils.beatmap.parser import (
     BEATMAP_REGEX,
     extract_beatmap_from_message
 )
@@ -435,7 +435,6 @@ class TraceCommands(commands.Cog):
             reference = ctx.message.reference
 
             if reference and reference.resolved:
-
                 beatmap_id = await extract_beatmap_from_message(
                     reference.resolved
                 )

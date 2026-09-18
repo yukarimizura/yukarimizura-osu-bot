@@ -1,4 +1,5 @@
 import os
+import asyncio
 import aiohttp
 
 from collections import OrderedDict
@@ -19,132 +20,61 @@ BEATMAP_CACHE_DIR = os.path.join(
     "beatmaps"
 )
 
-beatmap_cache = {}
-
-# ---------------------------------------------------------
-# Parsed Beatmap Cache (Memory)
-# ---------------------------------------------------------
-
-MAX_PARSED_BEATMAPS = MAX_PARSED_MAP
 _PARSED_BEATMAP_CACHE = OrderedDict()
-
-# Difficulty Cache (Memory)
-MAX_DIFFICULTY_CACHE = MAX_PARSED_BEATMAPS * 5 # Since one beatmap can be several mods
+MAX_DIFFICULTY_CACHE = MAX_PARSED_MAP * 5 # Since one beatmap can be several mods
 _DIFFICULTY_CACHE = OrderedDict()
 
 async def get_beatmap_file(session, beatmap_id):
-
-    os.makedirs(
-        BEATMAP_CACHE_DIR,
-        exist_ok=True
-    )
-
-    file_path = os.path.join(
+    os.makedirs(BEATMAP_CACHE_DIR, exist_ok=True)
+    file_path = os.path_join(
         BEATMAP_CACHE_DIR,
         f"{beatmap_id}.osu"
     )
 
-    # Already cached
     if os.path.exists(file_path):
-
         touch(file_path)
-
-        logger.debug(
-            f"Disk cache hit for beatmap {beatmap_id}"
-        )
-
         return file_path
 
-    # Need a new slot
-    cleanup_cache(
-        BEATMAP_CACHE_DIR,
-        ".osu"
-    )
-
-    url = (
-        f"https://osu.ppy.sh/osu/"
-        f"{beatmap_id}"
-    )
+    cleanup_cache(BEATMAP_CACHE_DIR, ".osu")
+    url = f"https://osu.ppy.sh./osu/{beatmap_id}"
 
     async with session.get(url) as response:
-
         if response.status != 200:
-
-            logger.error(
-                f"Failed downloading beatmap "
-                f"{beatmap_id}"
-            )
-
             return None
-
         content = await response.read()
 
-        logger.info(
-            f"Downloaded beatmap {beatmap_id} from osu!"
-        )
-
-    with open(file_path, "wb") as file:
-        file.write(content)
-
+    await asyncio.to_thread(
+        lambda: open(
+            file_path, "wb"
+        ).write(content)
+    )
     return file_path
-
 async def load_beatmap(session, beatmap_id):
-    # Memory cache
-    beatmap = _PARSED_BEATMAP_CACHE.get(beatmap_id)
-
-    if beatmap is not None:
+    if beatmap_id in _PARSED_BEATMAP_CACHE:
         _PARSED_BEATMAP_CACHE.move_to_end(beatmap_id)
-
-        logger.debug(
-            f"Memory cache hit for beatmap {beatmap_id}"
-        )
-        return beatmap
-    
-    # Disk cache
+        return _PARSED_BEATMAP_CACHE[beatmap_id]
 
     file_path = await get_beatmap_file(session, beatmap_id)
-
     if file_path is None:
         return None
-    
+
     try:
-        logger.debug(
-            f"Parsing beatmap {beatmap_id} from disk."
+        beatmap = await asyncio.to_thread(
+            lambda: Beatmap(
+                path=file_path
+            )
         )
-
-        beatmap = Beatmap(path=file_path)
-
-    except Exception:
-        logger.exception(
-            f"Could not parse beatmap {beatmap_id}."
-        )
-
+    except:
+        logger.exception(f"Could not parse beatmap {beatmap_id}.")
         return None
-    
-    logger.debug(
-        f"Successfully parsed beatmap {beatmap_id}."
-    )
-    
-    # Save into memory
+
     _PARSED_BEATMAP_CACHE[beatmap_id] = beatmap
-
-    logger.debug(
-        f"Cached parsed beatmap {beatmap_id} in memory."
-    )
-
     _PARSED_BEATMAP_CACHE.move_to_end(beatmap_id)
 
-    #LRU Eviction
-
-    while len(_PARSED_BEATMAP_CACHE) > MAX_PARSED_BEATMAPS:
-
-        evicted_id, _ = _PARSED_BEATMAP_CACHE.popitem(last=False)
-
-        logger.debug(
-            f"Evicted parsed beatmap {evicted_id} from memory cache."
-        )
-
+    while len(_PARSED_BEATMAP_CACHE) > MAX_PARSED_MAP:
+        _PARSED_BEATMAP_CACHE.popitem(last=False)
     return beatmap
+
 
 
 def get_stat(statistics, *names):

@@ -1,4 +1,4 @@
-from .parser import extract_beatmap_id, extract_beatmap_from_embed
+from utils.beatmap.parser import extract_beatmap_id, extract_beatmap_from_embed
 
 async def resolve_beatmap_id(ctx, arg: str | None) -> int | None:
 

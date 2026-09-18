@@ -3,7 +3,7 @@ EXTENSIONS = [
     "commands.osu",
     "commands.recent",
     "commands.top",
-    "commands.trace",
-    "commands.map",
+    "commands.trace.trace",
+    "commands.map.map",
     "commands.owner",
 ]

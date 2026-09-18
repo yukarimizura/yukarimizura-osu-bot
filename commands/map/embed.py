@@ -1,13 +1,9 @@
 import discord
-from utils.constants import OSU_PINK
+from utils.constants import OSU_PINK, format_mods
 from api.pp_calculator import load_beatmap, calculate_pp, _DIFFICULTY_CACHE, MAX_DIFFICULTY_CACHE
 from rosu_pp_py import Difficulty
 
-# global or bot-level cache
 beatmap_cache = {}
-
-difficulty_cache = {}
-
 
 async def load_cached(session, beatmap_id):
     if beatmap_id in beatmap_cache:
@@ -17,9 +13,9 @@ async def load_cached(session, beatmap_id):
     beatmap_cache[beatmap_id] = parsed
     return parsed
 
-def estimate_combo(max_combo: int, misses: int, total_objects: int):
-
-    if misses == 0:
+def estimate_combo(max_combo: int, misses: int, total_objects: int) -> int:
+    """Bathbot heuristic for estimating combo retention on miss."""
+    if misses == 0 or total_objects == 0:
         return max_combo
     miss_ratio = misses / total_objects
     retention = 1 - (miss_ratio ** 0.7)
@@ -27,7 +23,8 @@ def estimate_combo(max_combo: int, misses: int, total_objects: int):
 
     return int(max(0, min(combo, max_combo)))
 
-def estimate_hits(map_info, acc, misses, od, mods):
+def estimate_hits(map_info: dict, acc: float, misses: int, od: float, mods: list):
+    """Bathbot heuristic for distributing 300/100/50 based on OD and speed."""
     total_objects = map_info["total"]
     circles, sliders, spinners = map_info["circles"], map_info["sliders"], map_info["spinners"]
     acc = max(0.0, min(acc, 100.0))
@@ -41,7 +38,7 @@ def estimate_hits(map_info, acc, misses, od, mods):
     target_total = acc / 100 * 300 * effective_objects
 
     effective_od = od * (1.4 if "HR" in mods else 0.5 if "EZ" in mods else 1.0)
-    effective_od = min(effective_od, 10)
+    effective_od = min(effective_od, 10.0)
 
     speed_factor = 1.1 if ("DT" in mods or "NC" in mods) else 0.9 if "HT" in mods else 1.0
     fifty_weight = (0.5 + (10 - effective_od) * 0.15) * speed_factor
@@ -73,7 +70,7 @@ def estimate_hits(map_info, acc, misses, od, mods):
 
 map_info_cache = {}
 
-def analyze_map(parsed, beatmap_id):
+def analyze_map(parsed, beatmap_id: int) -> dict:
     if beatmap_id in map_info_cache:
         return map_info_cache[beatmap_id]
 
@@ -83,20 +80,20 @@ def analyze_map(parsed, beatmap_id):
         "spinners": parsed.n_spinners,
         "total": parsed.n_circles + parsed.n_sliders + parsed.n_spinners
     }
-
     map_info_cache[beatmap_id] = info
     return info
 
-async def create_map_embed(beatmap, params, session):
+async def create_map_embed(beatmap: dict, params: dict, session) -> discord.Embed:
     beatmap_id = beatmap["id"]
-    parsed = await load_beatmap(session, beatmap_id)
+    parsed = await load_cached(session, beatmap_id)
     if parsed is None:
-        return discord.Embed(title="Failed to load beatmap for calculation.")
+        return discord.Embed(title="Failed to load beatmap for calculation.", color=OSU_PINK)
 
     mods = params.get("mods", [])
     acc = params.get("accuracy", 100.0)
     misses = params.get("misses", 0)
 
+    # 1. Modded Difficulty Calculation
     key = (beatmap_id, tuple(sorted(mods)))
     if key in _DIFFICULTY_CACHE:
         difficulty = _DIFFICULTY_CACHE[key]
@@ -108,62 +105,85 @@ async def create_map_embed(beatmap, params, session):
         while len(_DIFFICULTY_CACHE) > MAX_DIFFICULTY_CACHE:
             _DIFFICULTY_CACHE.popitem(last=False)
 
-    stars = getattr(difficulty, "stars", beatmap["difficulty_rating"])
+    stars = getattr(difficulty, "stars", beatmap.get("difficulty_rating", 0))
     max_combo = getattr(difficulty, "max_combo", beatmap.get("max_combo", 0))
 
-    map_info = {
-        "circles": parsed.n_circles,
-        "sliders": parsed.n_sliders,
-        "spinners": parsed.n_spinners,
-        "total": parsed.n_circles + parsed.n_sliders + parsed.n_spinners
-    }
+    # Mod-scaled attributes for display
+    ar = getattr(difficulty, "ar", beatmap.get("ar", 0))
+    od = getattr(difficulty, "od", beatmap.get("accuracy", 0))
+    cs = getattr(difficulty, "cs", beatmap.get("cs", 0))
+    hp = getattr(difficulty, "hp", beatmap.get("drain", 0))
 
-    n300, n100, n50 = estimate_hits(map_info, acc, misses, beatmap["accuracy"], mods)
+    clock_rate = 1.5 if any(m in mods for m in ("DT", "NC")) else 0.75 if "HT" in mods else 1.0
+    bpm = beatmap.get("bpm", 0) * clock_rate
+    length = int(beatmap.get("total_length", 0) / clock_rate)
+
+    map_info = analyze_map(parsed, beatmap_id)
+
+    # 2. Estimate hits using Bathbot algorithm
+    n300, n100, n50 = estimate_hits(map_info, acc, misses, od, mods)
     combo = estimate_combo(max_combo, misses, map_info["total"])
 
-    pp = calculate_pp(
-        beatmap=parsed,
-        mods=mods,
-        combo=combo,
-        n300=n300,
-        n100=n100,
-        n50=n50,
-        misses=misses,
-        passed_objects=map_info["total"] - misses if misses else None
-    ) or 0
-
+    # Benchmark accuracy calculations
     acc_headers, acc_pps = [], []
     for a in (95, 97, 99, 100):
-        h300, h100, h50 = estimate_hits(map_info, a, 0, beatmap["accuracy"], mods)
+        h300, h100, h50 = estimate_hits(map_info, a, 0, od, mods)
         val = calculate_pp(parsed, mods, max_combo, h300, h100, h50, 0) or 0
         acc_headers.append(f"{a}%")
         acc_pps.append(f"{val:.0f}pp")
 
+    # Custom requested accuracy / miss line if user typed options
+    custom_pp_line = ""
+    if params.get("accuracy") is not None or misses > 0:
+        custom_pp = calculate_pp(
+            beatmap=parsed,
+            mods=mods,
+            combo=combo,
+            n300=n300,
+            n100=n100,
+            n50=n50,
+            misses=misses,
+            passed_objects=map_info["total"] - misses if misses else None
+        ) or 0
+        custom_pp_line = f"\n**Specified:** `{acc:.2f}%` · `{misses}m` ➔ **{custom_pp:.2f}pp**"
+
+    # 3. Assemble Embed
+    artist = beatmap["beatmapset"]["artist"]
+    title = beatmap["beatmapset"]["title"]
+    version = beatmap["version"]
+    url = f"https://osu.ppy.sh/beatmaps/{beatmap_id}"
+
     embed = discord.Embed(
-        title=f"{beatmap['beatmapset']['artist']} - {beatmap['beatmapset']['title']} [{beatmap['version']}]",
+        title=f"{artist} - {title} [{version}]",
+        url=url,
         color=OSU_PINK
     )
-    embed.set_thumbnail(url=beatmap["beatmapset"]["covers"]["card"])
-    embed.description = f"**⭐ {stars:.2f} • {''.join(mods) if mods else 'NM'}**\nMapped by **{beatmap['beatmapset']['creator']}**"
-    
-    length = beatmap["total_length"]
+
+    card_cover = beatmap["beatmapset"].get("covers", {}).get("card")
+    if card_cover:
+        embed.set_thumbnail(url=card_cover)
+
+    mods_str = format_mods(mods)
+    creator = beatmap["beatmapset"].get("creator", "Unknown")
+    embed.description = f"**⭐ {stars:.2f}★ · `{mods_str}`**\nMapped by **{creator}**"
+
     embed.add_field(
         name="📊 Map Stats",
         value=(
-            f"`{beatmap['bpm']}` **BPM** • `{length // 60}:{length % 60:02d}` • `{max_combo}x`\n"
-            f"**CS** `{beatmap['cs']}` • **AR** `{beatmap['ar']}` • **OD** `{beatmap['accuracy']}` • **HP** `{beatmap['drain']}`"
+            f"`{bpm:.0f}` **BPM** • `{length // 60}:{length % 60:02d}` • `{max_combo:,}x`\n"
+            f"**CS** `{cs:.1f}` • **AR** `{ar:.1f}` • **OD** `{od:.1f}` • **HP** `{hp:.1f}`"
         ),
         inline=False
     )
     embed.add_field(
         name="🎯 Objects",
-        value=f"Circle: {map_info['circles']} Sliders: {map_info['sliders']} Spinners: {map_info['spinners']}",
+        value=f"Circles: `{map_info['circles']}` • Sliders: `{map_info['sliders']}` • Spinners: `{map_info['spinners']}`",
         inline=True
     )
     embed.add_field(
         name="💎 PP Calculator",
-        value=f"**Accuracy**\n`{' | '.join(acc_headers)}`\n`{' | '.join(acc_pps)}`",
+        value=f"**Accuracy**\n`{' | '.join(acc_headers)}`\n`{' | '.join(acc_pps)}`{custom_pp_line}",
         inline=False
     )
-    embed.set_footer(text=f"Mapped by {beatmap['beatmapset']['creator']}")
+    embed.set_footer(text=f"Beatmap ID: {beatmap_id}")
     return embed
